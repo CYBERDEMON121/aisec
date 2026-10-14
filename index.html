@@ -1,0 +1,781 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Autonomous AI Agents in Offensive Security / Red Teaming</title>
+<style>
+:root{
+    --bg:#07070b; --bg2:#0b0b12;
+    --panel:rgba(255,255,255,.035); --panel2:rgba(255,255,255,.06);
+    --ink:#f2f2f7; --dim:#a2a2b8; --faint:#63637a;
+    --mag:#ff2d95; --cyan:#22d3ee; --lime:#a3e635; --amber:#fbbf24; --red:#fb7185;
+    --line:rgba(255,255,255,.09);
+    --mono:"JetBrains Mono","Fira Code",ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:"Inter","Segoe UI",system-ui,-apple-system,sans-serif;
+    --r:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:var(--bg); color:var(--ink); font-family:var(--sans);
+    overflow:hidden; -webkit-font-smoothing:antialiased;
+  }
+  body::before{
+    content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
+    background:
+      radial-gradient(900px 500px at 12% -10%, rgba(255,45,149,.13), transparent 60%),
+      radial-gradient(900px 500px at 100% 110%, rgba(34,211,238,.11), transparent 60%),
+      linear-gradient(180deg,var(--bg),var(--bg2));
+  }
+  /* ---- top bar ---- */
+  #bar{
+    position:fixed; top:0; left:0; right:0; height:44px; z-index:50;
+    display:flex; align-items:center; gap:16px; padding:0 22px;
+    background:rgba(7,7,11,.72); border-bottom:1px solid var(--line);
+    backdrop-filter:blur(14px); font-family:var(--mono); font-size:11.5px;
+    color:var(--faint); letter-spacing:.4px;
+  }
+  #bar .tag{
+    display:flex; align-items:center; gap:8px; color:var(--ink); font-weight:700;
+    letter-spacing:2.4px; font-size:11px;
+  }
+  #bar .tag::before{
+    content:""; width:8px; height:8px; border-radius:50%; background:var(--mag);
+    box-shadow:0 0 10px var(--mag); animation:pulse 2.2s infinite;
+  }
+  #bar .hint{color:var(--faint)}
+  #bar .spacer{flex:1}
+  #counter{
+    font-variant-numeric:tabular-nums; color:var(--dim);
+    border:1px solid var(--line); border-radius:999px; padding:3px 12px; background:var(--panel);
+  }
+  /* ---- slide frame ---- */
+  #deck{height:100%; padding-top:44px; position:relative; z-index:1}
+  .slide{
+    display:none; height:calc(100vh - 44px); padding:34px 54px 44px;
+    position:relative; flex-direction:column;
+  }
+  .slide.active{display:flex; animation:rise .38s cubic-bezier(.22,1,.36,1)}
+  @keyframes rise{from{opacity:0; transform:translateY(14px)}to{opacity:1; transform:none}}
+  /* ---- typography ---- */
+  .slide h1{
+    font-family:var(--mono); font-size:44px; line-height:1.12; margin:0 0 10px; letter-spacing:-1px;
+    background:linear-gradient(95deg,var(--mag),var(--cyan) 70%);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .slide h2{
+    font-family:var(--mono); font-size:27px; margin:0 0 6px; letter-spacing:-.4px; color:var(--ink);
+  }
+  .slide h2 .kicker{
+    display:inline-flex; align-items:center; color:var(--mag); font-size:11.5px;
+    letter-spacing:2.6px; text-transform:uppercase; margin-bottom:10px;
+    background:rgba(255,45,149,.09); border:1px solid rgba(255,45,149,.28);
+    border-radius:999px; padding:3px 12px;
+  }
+  .slide .sub{color:var(--dim); font-size:15.5px; margin:0 0 18px; max-width:82ch; line-height:1.55}
+  .rule{height:1px; border:0; margin:14px 0 18px;
+    background:linear-gradient(90deg,rgba(255,45,149,.65),rgba(34,211,238,.25),transparent)}
+  /* ---- bullets ---- */
+  ul.bul{list-style:none; margin:0; padding:0; font-size:18px; line-height:1.5}
+  ul.bul li{position:relative; padding-left:30px; margin:0 0 12px; color:var(--ink)}
+  ul.bul li::before{
+    content:""; position:absolute; left:6px; top:.55em; width:7px; height:7px;
+    border-radius:2px; background:var(--mag); box-shadow:0 0 8px rgba(255,45,149,.7);
+  }
+  ul.bul li b{color:var(--cyan); font-weight:600}
+  ul.bul li code, .inline-code{
+    font-family:var(--mono); font-size:.82em; background:rgba(34,211,238,.08);
+    border:1px solid rgba(34,211,238,.22); border-radius:5px; padding:1px 7px; color:var(--cyan);
+  }
+  /* ---- grids ---- */
+  .two{display:grid; grid-template-columns:1fr 1fr; gap:20px; flex:1; min-height:0}
+  .three{display:grid; grid-template-columns:repeat(3,1fr); gap:16px; flex:1; min-height:0}
+  /* ---- cards ---- */
+  .card{
+    position:relative; background:var(--panel); border:1px solid var(--line);
+    border-radius:var(--r); padding:16px 18px; backdrop-filter:blur(6px);
+    overflow:hidden; transition:border-color .25s, transform .25s;
+  }
+  .card::before{
+    content:""; position:absolute; inset:0 auto 0 0; width:3px;
+    background:var(--faint); opacity:.55;
+  }
+  .card.mag::before{background:var(--mag); box-shadow:0 0 14px rgba(255,45,149,.6); opacity:1}
+  .card.cyan::before{background:var(--cyan); box-shadow:0 0 14px rgba(34,211,238,.5); opacity:1}
+  .card.lime::before{background:var(--lime); box-shadow:0 0 14px rgba(163,230,53,.45); opacity:1}
+  .card.amber::before{background:var(--amber); box-shadow:0 0 14px rgba(251,191,36,.45); opacity:1}
+  .card.red::before{background:var(--red); box-shadow:0 0 14px rgba(251,113,133,.5); opacity:1}
+  .card:hover{border-color:rgba(255,255,255,.18); transform:translateY(-2px)}
+  .card h3{
+    font-family:var(--mono); margin:0 0 10px; font-size:12.5px; letter-spacing:1.6px;
+    text-transform:uppercase; color:var(--faint);
+  }
+  .card.mag h3{color:var(--mag)} .card.cyan h3{color:var(--cyan)}
+  .card.lime h3{color:var(--lime)} .card.amber h3{color:var(--amber)}
+  .card.red h3{color:var(--red)}
+  .card ul{margin:0; padding-left:17px; font-size:14.5px; line-height:1.5; color:var(--dim)}
+  .card ul li{margin-bottom:6px}
+  .card ul li::marker{color:var(--faint)}
+  .card ul li b{color:var(--ink); font-weight:600}
+  /* ---- pills ---- */
+  .pill{
+    display:inline-block; font-family:var(--mono); font-size:10.5px; letter-spacing:.6px;
+    padding:4px 11px; border-radius:999px; border:1px solid var(--line);
+    background:var(--panel); color:var(--dim); margin:0 6px 7px 0;
+  }
+  .pill.mag{color:var(--mag); border-color:rgba(255,45,149,.4); background:rgba(255,45,149,.08)}
+  .pill.cyan{color:var(--cyan); border-color:rgba(34,211,238,.4); background:rgba(34,211,238,.08)}
+  .pill.lime{color:var(--lime); border-color:rgba(163,230,53,.4); background:rgba(163,230,53,.08)}
+  .pill.amber{color:var(--amber); border-color:rgba(251,191,36,.4); background:rgba(251,191,36,.08)}
+  /* ---- figures ---- */
+  figure{margin:0; flex:1; display:flex; flex-direction:column; min-height:0}
+  figure svg{width:100%; height:auto; max-height:100%}
+  figcaption{
+    font-family:var(--mono); font-size:11px; color:var(--faint); margin-top:10px;
+    text-align:center; letter-spacing:.3px;
+  }
+  /* ---- footer ---- */
+  .footer{
+    position:absolute; bottom:12px; left:54px; right:54px; display:flex;
+    justify-content:space-between; font-family:var(--mono); font-size:10.5px;
+    color:var(--faint); border-top:1px solid var(--line); padding-top:8px; letter-spacing:.5px;
+  }
+  .footer .eth{color:var(--amber)}
+  .big{font-size:23px; line-height:1.55; color:var(--ink)}
+  .cen{display:flex; flex-direction:column; justify-content:center; height:100%}
+  /* ---- svg diagram standard ---- */
+  .nbox{fill:rgba(255,255,255,.04); stroke:rgba(255,255,255,.14); stroke-width:1.4; rx:10}
+  .nbox.m{stroke:var(--mag)} .nbox.c{stroke:var(--cyan)}
+  .nbox.l{stroke:var(--lime)} .nbox.a{stroke:var(--amber)}
+  .ntxt{fill:var(--ink); font-family:var(--mono); font-size:14px}
+  .nsub{fill:var(--dim); font-family:var(--mono); font-size:11px}
+  .flow{stroke:#9a9aae; stroke-width:1.6; fill:none; marker-end:url(#arw)}
+  .flow.m{stroke:var(--mag); marker-end:url(#arwm)}
+  .flow.c{stroke:var(--cyan); marker-end:url(#arwc)}
+  .flow.l{stroke:var(--lime); marker-end:url(#arwl)}
+  .flabel{fill:var(--faint); font-family:var(--mono); font-size:11px}
+  .diamond{fill:rgba(251,191,36,.06); stroke:var(--amber); stroke-width:1.5}
+  /* ---- speaker notes ---- */
+  .notes{
+    display:none; margin-top:auto; padding:10px 14px; border-radius:10px;
+    border-left:3px solid var(--mag); background:rgba(255,255,255,.04);
+    font-size:12.5px; line-height:1.5; color:var(--dim); max-height:26%;
+  }
+  .notes b{color:var(--mag); font-family:var(--mono); letter-spacing:.5px}
+  body.shownotes .notes{display:block}
+  /* ---- title slide ---- */
+  .title-wrap{display:flex; flex-direction:column; justify-content:center; height:100%; gap:8px}
+  .title-wrap .eyebrow{
+    font-family:var(--mono); color:var(--mag); letter-spacing:4px; font-size:12px;
+    text-transform:uppercase; margin-bottom:6px;
+  }
+  .title-wrap h1{font-size:50px}
+  .title-wrap .meta{
+    font-family:var(--mono); color:var(--dim); font-size:14px; margin-top:20px;
+    line-height:1.8; letter-spacing:.3px;
+  }
+  /* ---- demo badge ---- */
+  .demo-badge{
+    display:inline-flex; align-items:center; align-self:flex-start;
+    background:linear-gradient(90deg,var(--mag),#ff5fa2); color:#fff; font-family:var(--mono);
+    font-size:11px; font-weight:700; padding:5px 16px; border-radius:999px; letter-spacing:2.4px;
+    text-transform:uppercase; margin-bottom:14px; box-shadow:0 4px 24px rgba(255,45,149,.35);
+    animation:pulse 2s infinite;
+  }
+  /* ---- connect slide ---- */
+  #deck a{transition:color .2s}
+  #deck a:hover{color:var(--mag) !important}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+  /* ---- print / pdf ---- */
+  @media print{
+    @page{size:1280px 720px; margin:0}
+    #bar{display:none}
+    body{overflow:visible; background:#07070b}
+    body::before{display:none}
+    #deck{padding-top:0}
+    .slide{display:flex !important; page-break-after:always; height:720px; width:1280px; animation:none}
+    .notes{display:block; max-height:none}
+    .card:hover{transform:none}
+  }
+</style>
+</head>
+<body>
+
+<div id="bar">
+  <span class="tag">CYBERDEMON &middot; AI SEC CHENNAI</span>
+  <span class="hint">&larr; / &rarr; navigate &middot; N speaker notes &middot; P print</span>
+  <span class="spacer"></span>
+  <span id="counter" class="hint">1 / 10</span>
+</div>
+
+<div id="deck">
+
+<!-- ==================== 1. TITLE ==================== -->
+<section class="slide active">
+  <div class="title-wrap">
+    <div class="eyebrow">OFFENSIVE AI &middot; CONFERENCE TALK</div>
+    <h1>Autonomous AI Agents in<br>Offensive Security / Red Teaming</h1>
+    <p class="sub" style="font-size:20px">Autonomous system scanning, vulnerability discovery, adaptive payload rewriting, RAM-based execution &amp; data exfiltration</p>
+    <div class="meta">
+      <b style="color:var(--ink)">Balaji</b> &middot; CYBERDEMON &mdash; Malware Developer &amp; Red Teamer<br>
+      AI Sec Chennai &middot; Conference Talk<br>
+      <span style="color:var(--amber)">Authorized, isolated lab research &mdash; no live infrastructure</span>
+    </div>
+  </div>
+  <div class="footer"><span>Autonomous AI Agents in Offensive Security / Red Teaming</span><span class="eth">Balaji &middot; AI Sec Chennai</span></div>
+  <div class="notes"><b>Notes:</b> Ground the room: this talk covers autonomous AI agents driving offensive operations &mdash; agentic malware across Windows, Linux, and Android with the same workflows. All research in an isolated authorized lab. Roadmap: stack, architecture, agentic malware, AV bypass, live demo, results.</div>
+</section>
+
+<!-- ==================== 2. WHOAMI ==================== -->
+<section class="slide">
+  <h2><span class="kicker">02 &middot; Speaker</span>Who Am I</h2>
+  <div class="two">
+    <div class="card mag">
+      <h3>Balaji &mdash; "CYBERDEMON"</h3>
+      <ul>
+        <li><b>Role:</b> Cybersecurity Analyst &amp; Purple-Team Specialist</li>
+        <li><b>Focus:</b> Red Teaming, Exploit Dev, OSINT, Malware Analysis, Reverse Engineering</li>
+        <li><b>Other:</b> Full-Stack Dev, DevSecOps, SOC Ops, Incident Response</li>
+        <li><b>Community:</b> TryHackMe Top Performer &middot; Red Team Specialist</li>
+        <li><b>CTFs:</b> 47 CTFs breached &middot; 60K+ THM points</li>
+        <li><b>Tools Built:</b> 12+ offensive &amp; defensive tools</li>
+      </ul>
+    </div>
+    <div class="card red">
+      <h3>Malware Developer &amp; Red Teamer</h3>
+      <ul>
+        <li>Custom RATs, reverse shells, and C2 implants across Windows/Linux/Android</li>
+        <li>AV bypass, payload obfuscation, fileless execution</li>
+        <li>Full adversary simulation: initial access, persistence, exfiltration</li>
+        <li>Purple-team tooling: offensive payloads + defensive detection scripts</li>
+      </ul>
+    </div>
+    <div class="card cyan">
+      <h3>Certifications &amp; Achievements</h3>
+      <ul>
+        <li>Certified Red-Team Expert</li>
+        <li>Certified Cybersecurity Teacher (Red Team Village)</li>
+        <li>Pentest &amp; Ethical Hacking Expert</li>
+        <li>Top-10 &mdash; Smart India Hackathon</li>
+        <li>Professional Service Director &mdash; Rotaract</li>
+        <li>OWASP certified</li>
+      </ul>
+    </div>
+  </div>
+  <div class="two" style="margin-top:14px; flex:0 0 auto">
+    <div class="card lime">
+      <h3>Technical Skills</h3>
+      <ul>
+        <li><b>Languages:</b> Python, C, C++, Rust, Go, Ruby, JS, TS, Bash, PowerShell</li>
+        <li><b>Security:</b> PenTesting, Malware Dev, Reverse Eng, AV Bypass, SOC, IR</li>
+        <li><b>Tools:</b> Wireshark, Nmap, Burp Suite, Nessus, Custom Scripts</li>
+        <li><b>DevOps:</b> Docker, Kubernetes, CI/CD, DevSecOps Pipelines</li>
+      </ul>
+    </div>
+    <div class="card amber">
+      <h3>Experience</h3>
+      <ul>
+        <li><b>Head</b> &mdash; Ashridse (Developer &amp; Cybersecurity Lead), 2025&ndash;2026</li>
+        <li>Led red-team ops, custom RATs, reverse engineering, SOC, DevSecOps</li>
+        <li><b>Internship</b> &mdash; Networking &amp; Ethical Hacking</li>
+        <li><b>Community:</b> Cybersecurity teacher &amp; speaker</li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer"><span>02 &middot; Who Am I</span><span class="eth">Ethics &amp; scope: isolated authorized lab</span></div>
+  <div class="notes"><b>Notes:</b> Keep this quick &mdash; the audience wants to know credibility, not a resume dump. Emphasize the purple-team angle: I build offensive tools AND defensive toolsets. The 47 CTFs and 60K THM points show hands-on depth. Pivot quickly to the talk content.</div>
+</section>
+
+<!-- ==================== 3. THE STACK & TOOLS ==================== -->
+<section class="slide">
+  <h2><span class="kicker">03 &middot; The Stack</span>Full Stack &amp; Tool Surface</h2>
+  <p class="sub">End-to-end toolchain: implant build &rarr; C2 control plane &rarr; AI operator &rarr; bounded tools</p>
+  <div class="two">
+    <div class="card mag">
+      <h3>C2 Control Plane</h3>
+      <ul>
+        <li><b>Flask web console</b> &mdash; clients, terminal, file transfer</li>
+        <li><b>CLI listener</b> &mdash; terminal with command history</li>
+        <li><b>Builder APIs</b> &mdash; configure + cross-compile implants</li>
+        <li><b>REST APIs</b> &mdash; same endpoints the AI agent consumes</li>
+        <li><b>Multi-port listeners</b> &mdash; concurrent implant sessions</li>
+      </ul>
+    </div>
+    <div class="card cyan">
+      <h3>AI Operator Layer</h3>
+      <ul>
+        <li><b>LLM Planner</b> &mdash; decides next tool call from objective</li>
+        <li><b>Scope Guardrail</b> &mdash; allow-list &middot; denylist &middot; human approval</li>
+        <li><b>Output Parser</b> &mdash; triages implant responses, builds reason trace</li>
+        <li><b>Bounded Tools</b> &mdash; typed args, known failure modes</li>
+        <li><b>Audit Logger</b> &mdash; every decision logged for review</li>
+      </ul>
+    </div>
+  </div>
+  <div class="two" style="margin-top:16px; flex:0 0 auto">
+    <div class="card lime">
+      <h3>Implant Build Pipeline</h3>
+      <ul>
+        <li><b>Windows:</b> C++ cross-compiled with MinGW (<code>x86_64-w64-mingw32-g++</code>)</li>
+        <li><b>Linux:</b> C compiled with GCC (<code>gcc pay_linux.c -lX11 -lpthread</code>)</li>
+        <li><b>Android:</b> APK builder (WebView-wrapped)</li>
+      </ul>
+    </div>
+    <div class="card amber">
+      <h3>Agent Tool Surface</h3>
+      <ul>
+        <li><code>build_implant(platform, host, port)</code></li>
+        <li><code>open_listener(port)</code></li>
+        <li><code>scan_system(client_id)</code> &mdash; full host recon</li>
+        <li><code>analyze_flaws(client_id)</code> &mdash; vuln discovery</li>
+        <li><code>rewrite_payload(arch, os)</code> &mdash; adaptive scripts</li>
+        <li><code>exec_ram(client_id, payload)</code> &mdash; fileless</li>
+        <li><code>exfiltrate(client_id, path)</code> &mdash; data extraction</li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer"><span>03 &middot; The Stack</span><span class="eth">Ethics &amp; scope: isolated authorized lab</span></div>
+  <div class="notes"><b>Notes:</b> The stack has three layers: the C2 control plane (Flask APIs + CLI + builder), the implant build pipeline (MinGW for Windows, GCC for Linux, APK for Android), and the AI operator layer (LLM planner + guardrail + bounded tools). The agent consumes the exact same REST APIs the web UI uses &mdash; no special backdoor.</div>
+</section>
+
+<!-- ==================== 4. HOW IT WORKS ==================== -->
+<section class="slide">
+  <h2><span class="kicker">04 &middot; Architecture</span>How It Works: Full Agent Workflow</h2>
+  <p class="sub">Objective in, structured report out &mdash; every step gated, parsed and audited</p>
+
+  <figure style="flex:0 0 auto">
+    <svg viewBox="0 0 1180 300" role="img" aria-label="End to end agent workflow">
+      <defs>
+        <marker id="arw" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#9a9aae"/></marker>
+        <marker id="arwm" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#ff2d95"/></marker>
+        <marker id="arwc" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#22d3ee"/></marker>
+        <marker id="arwl" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#a3e635"/></marker>
+      </defs>
+
+      <!-- row 1 : perceive -->
+      <rect class="nbox c" x="10" y="30" width="140" height="62"/>
+      <text class="ntxt" x="80" y="56" text-anchor="middle">Objective</text>
+      <text class="nsub" x="80" y="75" text-anchor="middle">natural language</text>
+
+      <rect class="nbox c" x="175" y="30" width="140" height="62"/>
+      <text class="ntxt" x="245" y="56" text-anchor="middle">Scan</text>
+      <text class="nsub" x="245" y="75" text-anchor="middle">os / ports / services</text>
+
+      <rect class="nbox m" x="340" y="30" width="140" height="62"/>
+      <text class="ntxt" x="410" y="56" text-anchor="middle">Analyze</text>
+      <text class="nsub" x="410" y="75" text-anchor="middle">find flaws</text>
+
+      <rect class="nbox m" x="505" y="30" width="140" height="62"/>
+      <text class="ntxt" x="575" y="56" text-anchor="middle">Rewrite</text>
+      <text class="nsub" x="575" y="75" text-anchor="middle">match arch / os</text>
+
+      <rect class="nbox a" x="670" y="30" width="140" height="62"/>
+      <text class="ntxt" x="740" y="56" text-anchor="middle">Build</text>
+      <text class="nsub" x="740" y="75" text-anchor="middle">cross-compile</text>
+
+      <rect class="nbox a" x="835" y="30" width="140" height="62"/>
+      <text class="ntxt" x="905" y="56" text-anchor="middle">Listen</text>
+      <text class="nsub" x="905" y="75" text-anchor="middle">open port</text>
+
+      <rect class="nbox l" x="1000" y="30" width="170" height="62"/>
+      <text class="ntxt" x="1085" y="56" text-anchor="middle">Beacon + Exec</text>
+      <text class="nsub" x="1085" y="75" text-anchor="middle">fileless in RAM</text>
+
+      <path class="flow c" d="M150,61 L175,61"/>
+      <path class="flow c" d="M315,61 L340,61"/>
+      <path class="flow m" d="M480,61 L505,61"/>
+      <path class="flow m" d="M645,61 L670,61"/>
+      <path class="flow a" d="M810,61 L835,61"/>
+      <path class="flow a" d="M975,61 L1000,61"/>
+
+      <!-- guardrail band -->
+      <rect x="10" y="118" width="1160" height="40" rx="8" fill="rgba(251,191,36,.05)" stroke="rgba(251,191,36,.35)" stroke-width="1.2" stroke-dasharray="5 4"/>
+      <text class="flabel" x="24" y="134" fill="#fbbf24">INLINE GUARDRAIL &mdash; every tool call above must pass:</text>
+      <text class="flabel" x="24" y="150">scope allow-list &nbsp;&middot;&nbsp; action denylist &nbsp;&middot;&nbsp; destructive ? human approval &nbsp;&middot;&nbsp; rate limit &nbsp;&middot;&nbsp; audit log</text>
+
+      <!-- row 2 : act -->
+      <rect class="nbox l" x="1000" y="182" width="170" height="62"/>
+      <text class="ntxt" x="1085" y="208" text-anchor="middle">Command</text>
+      <text class="nsub" x="1085" y="227" text-anchor="middle">run_command()</text>
+
+      <rect class="nbox m" x="835" y="182" width="140" height="62"/>
+      <text class="ntxt" x="905" y="208" text-anchor="middle">Exfil</text>
+      <text class="nsub" x="905" y="227" text-anchor="middle">extract data</text>
+
+      <rect class="nbox c" x="670" y="182" width="140" height="62"/>
+      <text class="ntxt" x="740" y="208" text-anchor="middle">Parse</text>
+      <text class="nsub" x="740" y="227" text-anchor="middle">structure output</text>
+
+      <rect class="nbox m" x="505" y="182" width="140" height="62"/>
+      <text class="ntxt" x="575" y="208" text-anchor="middle">Re-plan</text>
+      <text class="nsub" x="575" y="227" text-anchor="middle">on failure</text>
+
+      <rect class="nbox c" x="340" y="182" width="140" height="62"/>
+      <text class="ntxt" x="410" y="208" text-anchor="middle">Report</text>
+      <text class="nsub" x="410" y="227" text-anchor="middle">structured findings</text>
+
+      <rect class="nbox a" x="175" y="182" width="140" height="62"/>
+      <text class="ntxt" x="245" y="208" text-anchor="middle">Audit</text>
+      <text class="nsub" x="245" y="227" text-anchor="middle">reason trace</text>
+
+      <path class="flow l" d="M1085,92 L1085,182"/>
+      <path class="flow m" d="M1000,213 L975,213"/>
+      <path class="flow c" d="M835,213 L810,213"/>
+      <path class="flow m" d="M670,213 L645,213"/>
+      <path class="flow c" d="M505,213 L480,213"/>
+      <path class="flow a" d="M340,213 L315,213"/>
+
+      <!-- feedback loop back to objective -->
+      <path class="flow c" d="M175,213 C 90,213 40,180 40,140 C 40,110 50,96 70,92"/>
+      <text class="flabel" x="150" y="262">loop until objective met &mdash; parse &rarr; re-plan &rarr; next tool call</text>
+    </svg>
+    <figcaption>Perceive &rarr; decide &rarr; act &rarr; observe &rarr; re-plan, with the guardrail inline and the audit trail captured at every hop</figcaption>
+  </figure>
+
+  <div class="two" style="margin-top:12px; flex:0 0 auto">
+    <figure>
+      <svg viewBox="0 0 560 150" role="img" aria-label="Protocol encoding round trip">
+        <rect class="nbox" x="6" y="34" width="62" height="48"/><text class="ntxt" x="37" y="55" text-anchor="middle">cmd</text><text class="nsub" x="37" y="71" text-anchor="middle">plain</text>
+        <rect class="nbox m" x="78" y="34" width="62" height="48"/><text class="ntxt" x="109" y="55" text-anchor="middle">XOR</text><text class="nsub" x="109" y="71" text-anchor="middle">0x3A</text>
+        <rect class="nbox c" x="150" y="34" width="62" height="48"/><text class="ntxt" x="181" y="55" text-anchor="middle">hex</text><text class="nsub" x="181" y="71" text-anchor="middle">enc</text>
+        <rect class="nbox a" x="222" y="34" width="62" height="48"/><text class="ntxt" x="253" y="55" text-anchor="middle">TCP</text><text class="nsub" x="253" y="71" text-anchor="middle">:7777</text>
+        <rect class="nbox c" x="294" y="34" width="62" height="48"/><text class="ntxt" x="325" y="55" text-anchor="middle">hex</text><text class="nsub" x="325" y="71" text-anchor="middle">dec</text>
+        <rect class="nbox m" x="366" y="34" width="62" height="48"/><text class="ntxt" x="397" y="55" text-anchor="middle">XOR</text><text class="nsub" x="397" y="71" text-anchor="middle">0x3A</text>
+        <rect class="nbox l" x="438" y="34" width="62" height="48"/><text class="ntxt" x="469" y="55" text-anchor="middle">exec</text><text class="nsub" x="469" y="71" text-anchor="middle">host</text>
+
+        <path class="flow" d="M68,58 L78,58"/>
+        <path class="flow" d="M140,58 L150,58"/>
+        <path class="flow" d="M212,58 L222,58"/>
+        <path class="flow" d="M284,58 L294,58"/>
+        <path class="flow" d="M356,58 L366,58"/>
+        <path class="flow" d="M428,58 L438,58"/>
+
+        <path class="flow c" d="M469,82 C 469,118 37,118 37,82"/>
+        <text class="flabel" x="253" y="112" text-anchor="middle">response re-encoded &middot; ChaCha20-Poly1305 AEAD (RFC 8439) &middot; XOR+hex legacy fallback</text>
+      </svg>
+      <figcaption>Wire protocol &mdash; a bounded, deterministic transform the agent never has to reason about</figcaption>
+    </figure>
+    <div class="card amber" style="display:flex; flex-direction:column; justify-content:center">
+      <h3>Why the Loop Stays Bounded</h3>
+      <ul>
+        <li>Agent picks <b>which</b> tool &mdash; the framework decides <b>how</b> it executes</li>
+        <li>Every response is parsed into <b>structure</b>, not free text</li>
+        <li>Failure triggers a <b>re-plan</b>, never an improvised action</li>
+        <li>Guardrail is <b>inline</b>: no tool call leaves without passing policy</li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer"><span>04 &middot; How It Works</span><span class="eth">Ethics &amp; scope: isolated authorized lab</span></div>
+  <div class="notes"><b>Notes:</b> Walk the top row left to right: objective, scan, analyze flaws, rewrite the payload for the target arch, cross-compile, open listener, beacon and execute filelessly in RAM. Emphasize the dashed band &mdash; the guardrail is inline, not advisory; nothing in that top row reaches the network without passing scope, denylist and approval checks. Then the bottom row flows right to left: command, exfiltrate, parse, re-plan, report, audit. The feedback arrow is what makes it an agent rather than a script &mdash; it loops until the objective is met. The protocol strip at the bottom is deliberately boring: every command crosses the same bounded transform, so the model never reasons about crypto.</div>
+</section>
+
+<!-- ==================== 4. AI MALWARE AUTOMATION AGENT ==================== -->
+<section class="slide">
+  <h2><span class="kicker">05 &middot; AI Agent</span>The Malware Automation Agent</h2>
+  <p class="sub">An autonomous agent that automates the full malware operation lifecycle &mdash; no human-in-the-loop for routine steps</p>
+  <div class="two">
+    <div class="card mag">
+      <h3>Agent Architecture</h3>
+      <ul>
+        <li><b>Objective Parser</b> &mdash; decomposes natural-language goals into sub-tasks</li>
+        <li><b>System Scanner</b> &mdash; enumerates OS, services, ports, software, users</li>
+        <li><b>Flaw Analyzer</b> &mdash; identifies vulnerabilities and attack vectors</li>
+        <li><b>Payload Rewriter</b> &mdash; adapts implant scripts to target architecture</li>
+        <li><b>RAM Executor</b> &mdash; loads payloads filelessly into memory</li>
+        <li><b>Data Extractor</b> &mdash; locates and exfiltrates sensitive data</li>
+        <li><b>State Machine</b> &mdash; IDLE &rarr; SCANNING &rarr; ANALYZING &rarr; BUILDING &rarr; DEPLOYED &rarr; EXECUTING &rarr; EXFILTRATING &rarr; REPORTING</li>
+      </ul>
+    </div>
+    <div class="card cyan">
+      <h3>Full Automation Pipeline</h3>
+      <ul>
+        <li><b>1. Ingest:</b> receives objective &mdash; "compromise lab host, find and exfiltrate creds"</li>
+        <li><b>2. Scan:</b> <code>scan_system()</code> &mdash; full host recon: OS, services, ports, users</li>
+        <li><b>3. Analyze:</b> <code>analyze_flaws()</code> &mdash; identifies vulnerabilities and attack surface</li>
+        <li><b>4. Rewrite:</b> <code>rewrite_payload()</code> &mdash; adapts scripts to target arch and OS</li>
+        <li><b>5. Execute:</b> <code>exec_ram()</code> &mdash; fileless in-memory payload execution</li>
+        <li><b>6. Exfiltrate:</b> <code>exfiltrate()</code> &mdash; locates and extracts sensitive data</li>
+        <li><b>7. Report:</b> compiles findings into structured output for human review</li>
+      </ul>
+    </div>
+  </div>
+  <div class="two" style="margin-top:14px; flex:0 0 auto">
+    <div class="card lime">
+      <h3>Safety Boundaries (Always On)</h3>
+      <ul>
+        <li><b>Scope allow-list</b> &mdash; agent cannot target outside approved IP ranges</li>
+        <li><b>Action denylist</b> &mdash; destructive commands blocked without human approval</li>
+        <li><b>Rate limiter</b> &mdash; max commands per session prevents runaway automation</li>
+        <li><b>Audit log</b> &mdash; every tool call, argument, and result is recorded</li>
+      </ul>
+    </div>
+    <div class="card amber">
+      <h3>Why This Matters</h3>
+      <ul>
+        <li>Reduces operator <b>cognitive load</b> from hours of glue work to minutes</li>
+        <li>Agent <b>parallelizes</b> tasks a human would serialize</li>
+        <li>Bounded tool surface means <b>predictable, testable</b> behavior</li>
+        <li>Human stays in control of <b>authorization and destructive actions</b></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer"><span>05 &middot; AI Malware Automation Agent</span><span class="eth">Ethics &amp; scope: isolated authorized lab</span></div>
+  <div class="notes"><b>Notes:</b> This is the core contribution: an AI agent that automates the entire malware operation lifecycle. The agent ingests a natural-language objective, decomposes it into sub-tasks, and executes them through bounded typed APIs. It has a state machine (IDLE, BUILDING, DEPLOYED, COMMANDING, REPORTING) and adapts autonomously when commands fail. Safety boundaries are always-on: scope allow-list, action denylist, rate limiting, and full audit logging. The human retains control of authorization and destructive decisions.</div>
+</section>
+
+<!-- ==================== 5. AGENTIC MALWARE ALL OS ==================== -->
+<section class="slide">
+  <h2><span class="kicker">06 &middot; Agentic Malware</span>One Agent, All OS &mdash; Same Workflows</h2>
+  <p class="sub">Single AI operator drives Windows, Linux, and Android implants through identical tool calls</p>
+  <div class="three">
+    <div class="card cyan">
+      <h3>Windows Implant</h3>
+      <ul>
+        <li><b>Source:</b> <code>pay.cpp</code> (C++, MinGW)</li>
+        <li><code>!shell / cmd</code> &mdash; execute via <b>cmd.exe /c</b></li>
+        <li><code>!cd</code> &mdash; working directory</li>
+        <li><code>!upload / !download</code> &mdash; file transfer</li>
+        <li><code>!ps / !kill</code> &mdash; process control</li>
+        <li><code>!screenshot</code> &mdash; GDI capture</li>
+        <li><code>!sysinfo</code> &mdash; host details</li>
+        <li><b>Persistence:</b> Registry Run-key</li>
+        <li><b>Stealth:</b> Masquerades as <b>msedge.exe</b></li>
+        <li><b>RAM Execution:</b> reflective DLL injection, process hollowing</li>
+        <li><b>Data Extraction:</b> credential harvest, file discovery, exfil over C2</li>
+      </ul>
+    </div>
+    <div class="card lime">
+      <h3>Linux Implant</h3>
+      <ul>
+        <li><b>Source:</b> <code>pay_linux.c</code> (C, GCC)</li>
+        <li>Same command surface via <b>sh -c</b></li>
+        <li><b>4 persistence paths:</b></li>
+        <li>systemd user service</li>
+        <li>cron (every 5 min)</li>
+        <li>shell rc / XDG autostart</li>
+        <li><b>Anti-debug:</b> ptrace self-attach</li>
+        <li><b>Stealth:</b> argv renaming + daemonize</li>
+        <li>Screenshot: X11 / ImageMagick</li>
+        <li><b>RAM Execution:</b> memfd_create, shared memory injection</li>
+        <li><b>Data Extraction:</b> file discovery, credential access, exfil</li>
+      </ul>
+    </div>
+    <div class="card amber">
+      <h3>Android Implant</h3>
+      <ul>
+        <li><b>Builder:</b> APK builder (WebView-wrapped)</li>
+        <li>Same C2 protocol &amp; transport</li>
+        <li>Commands via <b>sh -c</b> (Termux/ADB)</li>
+        <li><b>Same tool surface:</b></li>
+        <li><code>build_implant("android", ...)</code></li>
+        <li><code>run_command(client_id, cmd)</code></li>
+        <li>File transfer + screenshot</li>
+        <li><b>Workflow parity:</b> identical agent loop</li>
+      </ul>
+    </div>
+  </div>
+  <div style="margin-top:14px">
+    <span class="pill mag">Windows &middot; C++ &middot; MinGW</span><span class="pill lime">Linux &middot; C &middot; GCC</span><span class="pill amber">Android &middot; APK</span><span class="pill cyan">Same tool API</span><span class="pill">Same protocol</span>
+  </div>
+  <div class="footer"><span>06 &middot; Agentic Malware &mdash; All OS</span><span class="eth">Ethics &amp; scope: isolated authorized lab</span></div>
+  <div class="notes"><b>Notes:</b> The key claim: one AI operator, three implant families, identical workflows. The agent calls build_implant("windows"/"linux"/"android", host, port) and the builder cross-compiles. At runtime, the agent uses the same run_command tool regardless of platform. This is the "agentic malware for all OS" story &mdash; the agent doesn't care about the target OS, the framework handles it.</div>
+</section>
+
+<!-- ==================== 6. AV BYPASS & EVASION ==================== -->
+<section class="slide">
+  <h2><span class="kicker">07 &middot; Evasion</span>AV Bypass &amp; Anti-Analysis Techniques</h2>
+  <hr class="rule">
+  <ul class="bul">
+    <li><b>Compile-time string obfuscation</b> &mdash; plaintext never lands in <code>.rdata</code>; strings decrypted at runtime</li>
+    <li><b>PEB-based anti-debug</b> (Windows) &mdash; checks BeingDebugged flag; bails if a debugger is present</li>
+    <li><b>ptrace self-attach</b> (Linux) &mdash; if ptrace succeeds unexpectedly, a debugger is attached &mdash; fail closed</li>
+    <li><b>Anti-VM / sandbox checks</b> &mdash; CPUID, MAC address, process list heuristics; bail on analysis environments</li>
+    <li><b>Process masquerading</b> &mdash; renames image to <code>msedge.exe</code> or normal-looking process; console hidden, runs windowless</li>
+    <li><b>argv renaming</b> (Linux) &mdash; overwrites argv[0] to blend into normal process lists</li>
+    <li><b>Daemonization</b> (Linux) &mdash; detaches from terminal, forks to background</li>
+  </ul>
+  <div style="margin-top:8px">
+    <span class="pill mag">string obfuscation</span><span class="pill cyan">PEB anti-debug</span>
+    <span class="pill lime">anti-VM</span><span class="pill amber">masquerading</span>
+    <span class="pill mag">argv rename</span><span class="pill cyan">ptrace trick</span>
+  </div>
+  <div class="footer"><span>07 &middot; AV Bypass &amp; Evasion</span><span class="eth">Ethics &amp; scope: isolated authorized lab</span></div>
+  <div class="notes"><b>Notes:</b> Each technique is a detection opportunity for defenders &mdash; tie that forward to the ATT&amp;CK slide. The agent does not "invent" evasion; it selects from a bounded menu the framework exposes. That bounded choice is what keeps agentic malware predictable and auditable.</div>
+</section>
+
+<!-- ==================== 7. LIVE DEMO ==================== -->
+<section class="slide">
+  <div class="demo-badge">&#9654; LIVE DEMO</div>
+  <h2><span class="kicker">08 &middot; Live Demo</span>Demo Workflow: Objective to Execution</h2>
+  <div class="two" style="flex:1">
+    <figure>
+      <svg viewBox="0 0 500 340" role="img" aria-label="Demo workflow">
+        <rect class="nbox c" x="10" y="60" width="110" height="60"/>
+        <text class="ntxt" x="65" y="86" text-anchor="middle">1 &middot; Objective</text>
+        <text class="nsub" x="65" y="104" text-anchor="middle">natural language</text>
+
+        <rect class="nbox m" x="135" y="60" width="110" height="60"/>
+        <text class="ntxt" x="190" y="86" text-anchor="middle">2 &middot; Scan</text>
+        <text class="nsub" x="190" y="104" text-anchor="middle">system recon</text>
+
+        <rect class="nbox a" x="260" y="60" width="110" height="60"/>
+        <text class="ntxt" x="315" y="86" text-anchor="middle">3 &middot; Analyze</text>
+        <text class="nsub" x="315" y="104" text-anchor="middle">find flaws</text>
+
+        <rect class="nbox l" x="385" y="60" width="110" height="60"/>
+        <text class="ntxt" x="440" y="86" text-anchor="middle">4 &middot; Rewrite</text>
+        <text class="nsub" x="440" y="104" text-anchor="middle">adapt payload</text>
+
+        <rect class="nbox c" x="135" y="190" width="110" height="60"/>
+        <text class="ntxt" x="190" y="216" text-anchor="middle">5 &middot; Exec RAM</text>
+        <text class="nsub" x="190" y="234" text-anchor="middle">fileless</text>
+
+        <rect class="nbox m" x="260" y="190" width="110" height="60"/>
+        <text class="ntxt" x="315" y="216" text-anchor="middle">6 &middot; Exfil</text>
+        <text class="nsub" x="315" y="234" text-anchor="middle">extract data</text>
+
+        <rect class="nbox a" x="385" y="190" width="110" height="60"/>
+        <text class="ntxt" x="440" y="216" text-anchor="middle">7 &middot; Report</text>
+        <text class="nsub" x="440" y="234" text-anchor="middle">structured</text>
+
+        <path class="flow c" d="M120,90 L135,90"/>
+        <path class="flow m" d="M245,90 L260,90"/>
+        <path class="flow a" d="M370,90 L385,90"/>
+        <path class="flow l" d="M440,120 C 440,150 440,170 440,190"/>
+        <path class="flow c" d="M385,220 L370,220"/>
+        <path class="flow m" d="M260,220 L245,220"/>
+        <path class="flow a" d="M190,190 C 190,150 190,120 190,120"/>
+      </svg>
+      <figcaption>Five demo beats with the agent loop closing back to objective</figcaption>
+    </figure>
+    <div style="display:flex; flex-direction:column; gap:12px">
+      <div class="card lime">
+        <h3>What You'll See</h3>
+        <ul>
+          <li>Agent receives natural-language objective</li>
+          <li>Selects platform, builds implant via API</li>
+          <li>Opens listener, implant beacons in</li>
+          <li>Issues <code>!sysinfo</code>, parses output</li>
+          <li>Decides next action autonomously</li>
+        </ul>
+      </div>
+      <div class="card amber">
+        <h3>Build Pipeline (Live)</h3>
+        <ul>
+          <li><code>python3 web_listener.py</code> &mdash; control plane</li>
+          <li><code>x86_64-w64-mingw32-g++ pay.cpp ...</code></li>
+          <li><code>gcc -o payload.elf pay_linux.c ...</code></li>
+        </ul>
+      </div>
+      <div class="card cyan">
+        <h3>Key Moment</h3>
+        <ul>
+          <li>Beat 3: implant beacons and appears in client list &mdash; the "it's real" moment</li>
+          <li>~6 minutes total &middot; recorded fallback available</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="footer"><span>08 &middot; Live Demo</span><span class="eth">Ethics &amp; scope: isolated authorized lab</span></div>
+  <div class="notes"><b>Notes:</b> Storyboard before you run it live. The agent loops: parse, re-plan, next tool call until objective is met. Beat 3 is where the implant beacons &mdash; that's the payoff moment. Keep the recorded fallback cued in case the model endpoint hiccups.</div>
+</section>
+
+<!-- ==================== 7. RESULTS & TAKEAWAYS ==================== -->
+<section class="slide">
+  <h2><span class="kicker">09 &middot; Results</span>Results, Limitations &amp; Takeaways</h2>
+  <div class="two" style="flex:0 0 auto">
+    <div class="card lime">
+      <h3>What Worked</h3>
+      <ul>
+        <li>Objective &rarr; correct implant selection</li>
+        <li>Builder and listener driven via APIs</li>
+        <li>Command issued, output parsed, next step chosen</li>
+        <li><b>Parallelism:</b> agent queues steps a human serializes</li>
+        <li>Full audit trail: every decision logged</li>
+      </ul>
+    </div>
+    <div class="card amber">
+      <h3>Rough Edges</h3>
+      <ul>
+        <li>Occasional <b>hallucinated tool args</b></li>
+        <li>Over-eager command choice without nudged hint</li>
+        <li>Context loss across long command chains</li>
+        <li><b>Stale arguments</b> &mdash; reuses client ID after reconnect</li>
+      </ul>
+    </div>
+  </div>
+  <hr class="rule">
+  <ul class="bul" style="font-size:17px">
+    <li>An LLM agent can drive a real C2 control plane through <b>bounded, typed tools</b> across all OS targets.</li>
+    <li><b>Guardrails inline</b> &mdash; scope allow-list, action denylist, human approval &mdash; are what make agentic malware safe.</li>
+    <li>The agent <b>accelerates</b> an operator; hallucinated args keep humans in the loop.</li>
+    <li>Building from scratch gives you the <b>exact artifacts</b> for detection engineering.</li>
+  </ul>
+  <div style="margin-top:12px">
+    <span class="pill mag">ATT&amp;CK: T1046 &middot; T1059 &middot; T1036 &middot; T1547.001 &middot; T1053 &middot; T1027 &middot; T1041</span>
+    <span class="pill amber">authorized lab research only</span>
+  </div>
+  <div class="footer"><span>09 &middot; Results &amp; Takeaways</span><span class="eth">Ethics &amp; scope: isolated authorized lab</span></div>
+  <div class="notes"><b>Notes:</b> Be candid about rough edges &mdash; the agent compresses glue work but invents syntax and sometimes over-reaches. Land the four takeaways slowly. Q&amp;A likely questions: does the agent need a better model, how is scope enforced, and what's the false-negative story on the guardrail.</div>
+</section>
+
+<!-- ==================== 10. CONNECT ==================== -->
+<section class="slide">
+  <div class="title-wrap" style="flex-direction:row; gap:60px; align-items:center">
+    <div style="flex:1">
+      <div class="eyebrow">10 &middot; CONNECT</div>
+      <h1 style="font-size:40px">Let's Connect</h1>
+      <p class="sub" style="font-size:18px; margin-bottom:26px">Questions, collaboration, or want the tooling? Reach out.</p>
+      <div style="font-family:var(--mono); font-size:15px; line-height:2.1; color:var(--dim)">
+        <div><span style="color:var(--mag)">&#9679;</span> Portfolio &mdash; <a href="https://www.cyberdemon.run.place/" target="_blank" style="color:var(--cyan); text-decoration:none">cyberdemon.run.place</a></div>
+        <div><span style="color:var(--mag)">&#9679;</span> GitHub &mdash; <a href="https://github.com/CYBERDEMON121/" target="_blank" style="color:var(--cyan); text-decoration:none">github.com/CYBERDEMON121</a></div>
+        <div><span style="color:var(--mag)">&#9679;</span> LinkedIn &mdash; <a href="https://www.linkedin.com/in/cyber-demon-4313932b7/" target="_blank" style="color:var(--cyan); text-decoration:none">linkedin.com/in/cyber-demon</a></div>
+        <div><span style="color:var(--mag)">&#9679;</span> Instagram &mdash; <a href="https://www.instagram.com/demon_warrior_121/" target="_blank" style="color:var(--cyan); text-decoration:none">@demon_warrior_121</a></div>
+        <div><span style="color:var(--mag)">&#9679;</span> Email &mdash; <a href="mailto:balajipro121@gmail.com" style="color:var(--cyan); text-decoration:none">balajipro121@gmail.com</a></div>
+      </div>
+      <div style="margin-top:22px">
+        <span class="pill mag">Balaji &mdash; CYBERDEMON</span>
+        <span class="pill cyan">Malware Dev &middot; Red Teamer</span>
+        <span class="pill lime">AI Sec Chennai</span>
+        <span class="pill amber">authorized lab research only</span>
+      </div>
+    </div>
+    <div style="text-align:center">
+      <div style="background:#fff; padding:14px; border-radius:12px; display:inline-block">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=https%3A%2F%2Fwww.cyberdemon.run.place%2F"
+             alt="QR code to cyberdemon.run.place" style="width:260px; height:260px; display:block; image-rendering:pixelated">
+      </div>
+      <div style="font-family:var(--mono); font-size:12px; color:var(--faint); margin-top:10px">Scan for portfolio &amp; tooling</div>
+    </div>
+  </div>
+  <div class="footer"><span>10 &middot; Connect</span><span class="eth">Ethics &amp; scope: isolated authorized lab</span></div>
+  <div class="notes"><b>Notes:</b> Leave this up during Q&amp;A so the QR is scannable the whole time. Point out the repo link if anyone wants the CYBERDEMONS framework or the payload generators. Mention the Discord contact option on the site for anyone who wants to test the mini-CTF.</div>
+</section>
+
+</div><!-- /deck -->
+
+<script>
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var i = 0;
+  var counter = document.getElementById('counter');
+
+  function show(n){
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach(function(s, k){ s.classList.toggle('active', k === i); });
+    counter.textContent = (i + 1) + ' / ' + slides.length;
+    location.hash = 's' + (i + 1);
+  }
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown'){ e.preventDefault(); show(i + 1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp'){ e.preventDefault(); show(i - 1); }
+    else if (e.key === 'Home'){ show(0); }
+    else if (e.key === 'End'){ show(slides.length - 1); }
+    else if (e.key === 'n' || e.key === 'N'){ document.body.classList.toggle('shownotes'); }
+    else if (e.key === 'p' || e.key === 'P'){ window.print(); }
+  });
+  if (location.hash && /^#s\d+$/.test(location.hash)){ show(parseInt(location.hash.slice(2), 10) - 1); }
+  else { show(0); }
+</script>
+</body>
+</html>
